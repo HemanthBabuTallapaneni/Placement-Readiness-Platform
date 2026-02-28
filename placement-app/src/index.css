@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: hsl(245, 58%, 51%);
+}
+
+@layer base {
+  body {
+    color: var(--color-gray-900);
+    background-color: var(--color-gray-50);
+  }
+}
