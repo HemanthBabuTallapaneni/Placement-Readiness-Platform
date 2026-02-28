@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { processJD } from '../utils/analyzer';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { cn } from '../lib/utils';
-import { FileSearch, Clock, ChevronRight, CheckCircle2, ListChecks, Calendar, MessageSquare, ArrowLeft, Copy, Download, AlertCircle } from 'lucide-react';
+import { FileSearch, Clock, ChevronRight, CheckCircle2, ListChecks, Calendar, MessageSquare, ArrowLeft, Copy, Download, AlertCircle, Building2, Target, Users, GitBranch } from 'lucide-react';
 
 export default function Assessments() {
     const [activeTab, setActiveTab] = useState('analyze'); // 'analyze', 'history', 'results'
@@ -79,8 +79,10 @@ export default function Assessments() {
     };
 
     const copyChecklist = () => {
-        const text = currentResult.checklist.map(c => `${c.round}\n` + c.items.map(i => `- ${i}`).join('\n')).join('\n\n');
-        copyToClipboard("Round-wise Checklist:\n\n" + text);
+        const text = currentResult.dynamicRounds ?
+            currentResult.dynamicRounds.map(r => `${r.round}: ${r.title}\nTopics: ${r.topics}\nWhy: ${r.why}`).join('\n\n')
+            : currentResult.checklist.map(c => `${c.round}\n` + c.items.map(i => `- ${i}`).join('\n')).join('\n\n');
+        copyToClipboard("Projected Interview Rounds:\n\n" + text);
     };
 
     const copyQuestions = () => {
@@ -98,8 +100,8 @@ ${Object.entries(currentResult.extractedSkills).map(([cat, skills]) => `${cat}: 
 7-DAY PLAN
 ${currentResult.plan.map(p => `${p.day} - ${p.title}\n${p.description}`).join('\n\n')}
 
-ROUND-WISE CHECKLIST
-${currentResult.checklist.map(c => `${c.round}\n` + c.items.map(i => `- ${i}`).join('\n')).join('\n\n')}
+PROJECTED INTERVIEW ROUNDS
+${currentResult.dynamicRounds ? currentResult.dynamicRounds.map(r => `${r.round}: ${r.title}\nTopics: ${r.topics}\nWhy: ${r.why}`).join('\n\n') : currentResult.checklist.map(c => `${c.round}\n` + c.items.map(i => `- ${i}`).join('\n')).join('\n\n')}
 
 RECOMMENDED QUESTIONS
 ${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
@@ -241,6 +243,47 @@ ${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
                         </div>
                     </div>
 
+                    {currentResult.companyIntel && (
+                        <div className="space-y-2">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <Card className="shadow-sm border border-gray-100 bg-white">
+                                    <CardContent className="p-5 flex items-center gap-4">
+                                        <div className="bg-primary/10 p-3 rounded-xl text-primary shrink-0">
+                                            <Building2 className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Industry</p>
+                                            <p className="font-bold text-gray-800">{currentResult.companyIntel.industry}</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                <Card className="shadow-sm border border-gray-100 bg-white">
+                                    <CardContent className="p-5 flex items-center gap-4">
+                                        <div className="bg-primary/10 p-3 rounded-xl text-primary shrink-0">
+                                            <Users className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Est. Company Size</p>
+                                            <p className="font-bold text-gray-800">{currentResult.companyIntel.size}</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                <Card className="shadow-sm border border-gray-100 bg-white">
+                                    <CardContent className="p-5 flex items-center gap-4">
+                                        <div className="bg-primary/10 p-3 rounded-xl text-primary shrink-0">
+                                            <Target className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Typical Hiring Focus</p>
+                                            <p className="font-bold text-gray-800 text-sm">{currentResult.companyIntel.focus}</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                            <p className="text-right text-xs text-gray-400 font-medium italic pr-2">Demo Mode: Company intel and round mappings generated heuristically.</p>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2 space-y-6">
                             <Card className="shadow-sm border border-gray-100 overflow-hidden">
@@ -326,23 +369,23 @@ ${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
                             <Card className="shadow-sm border border-gray-100 bg-gray-900 text-white">
                                 <CardHeader className="pb-4 border-b border-gray-800">
                                     <CardTitle className="text-lg flex items-center gap-2 text-white">
-                                        <CheckCircle2 className="w-5 h-5 text-gray-400" /> Round-wise Checklist
+                                        <GitBranch className="w-5 h-5 text-primary" /> Projected Rounds
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="pt-6 space-y-6">
-                                    {currentResult.checklist.map((roundInfo, idx) => (
-                                        <div key={idx}>
-                                            <h5 className="font-bold text-sm text-white mb-3 uppercase tracking-wider">{roundInfo.round}</h5>
-                                            <ul className="space-y-2.5 pl-1">
-                                                {roundInfo.items.map((item, i) => (
-                                                    <li key={i} className="flex items-start gap-3">
-                                                        <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
-                                                        <span className="text-sm text-gray-300">{item}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    ))}
+                                <CardContent className="pt-6 relative">
+                                    <div className="absolute left-8 top-10 bottom-6 w-0.5 bg-gray-800"></div>
+                                    <div className="space-y-6 relative z-10">
+                                        {(currentResult.dynamicRounds || []).map((round, idx) => (
+                                            <div key={idx} className="relative pl-8">
+                                                <div className="absolute left-[-11px] top-1.5 w-3.5 h-3.5 bg-gray-900 border-2 border-primary rounded-full"></div>
+                                                <h5 className="font-bold text-sm text-white mb-0.5">{round.round}: {round.title}</h5>
+                                                <p className="text-xs font-bold text-primary mb-2">{round.topics}</p>
+                                                <p className="text-xs text-gray-400 leading-relaxed bg-gray-800/50 p-2.5 rounded-lg border border-gray-700/50">
+                                                    {round.why}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </CardContent>
                             </Card>
                         </div>
