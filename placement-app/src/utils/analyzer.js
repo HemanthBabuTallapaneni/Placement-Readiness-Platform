@@ -36,7 +36,7 @@ export const extractSkills = (jdText) => {
 
     const hasNone = Object.keys(extracted).length === 0;
     if (hasNone) {
-        extracted["General"] = ["General fresher stack"];
+        extracted["Other"] = ["Communication", "Problem solving", "Basic coding", "Projects"];
     }
 
     return { extracted, categoryCount, hasNone };
@@ -159,6 +159,19 @@ export const generateQuestions = (extractedSkills) => {
     return questions.slice(0, 10);
 };
 
+export const normalizeExtractedSkills = (extracted) => {
+    // Ensure all schema categories exist even if empty
+    return {
+        "Core CS": extracted["Core CS"] || [],
+        "Languages": extracted["Languages"] || [],
+        "Web": extracted["Web"] || [],
+        "Data": extracted["Data"] || [],
+        "Cloud/DevOps": extracted["Cloud/DevOps"] || [],
+        "Testing": extracted["Testing"] || [],
+        "Other": extracted["Other"] || []
+    };
+};
+
 export const inferCompanyIntel = (company, role, jdText) => {
     const textLower = ((company || "") + " " + (role || "") + " " + (jdText || "")).toLowerCase();
 
@@ -239,21 +252,26 @@ export const processJD = (company, role, jdText) => {
     initialScore = Math.max(0, Math.min(initialScore, 100));
 
     const intel = inferCompanyIntel(company, role, jdText);
+    const normalizedSkills = normalizeExtractedSkills(extracted);
+    const dynamicRounds = generateRounds(intel, normalizedSkills);
+    const checklistItems = generateChecklist(normalizedSkills);
+    const plan7Days = generatePlan(normalizedSkills);
 
     return {
         id: Date.now().toString(),
         createdAt: new Date().toISOString(),
-        company: company || "Unknown Company",
-        role: role || "Unknown Role",
+        updatedAt: new Date().toISOString(),
+        company: company || "",
+        role: role || "",
         jdText,
-        extractedSkills: extracted,
+        extractedSkills: normalizedSkills,
         baseScore,
         skillConfidenceMap,
-        readinessScore: initialScore,
+        finalScore: initialScore, // Renamed from readinessScore
         companyIntel: intel,
-        dynamicRounds: generateRounds(intel, extracted),
-        checklist: generateChecklist(extracted),
-        plan: generatePlan(extracted),
-        questions: generateQuestions(extracted)
+        roundMapping: dynamicRounds, // Renamed from dynamicRounds
+        checklist: checklistItems,
+        plan7Days: plan7Days, // Renamed from plan
+        questions: generateQuestions(normalizedSkills)
     };
 };

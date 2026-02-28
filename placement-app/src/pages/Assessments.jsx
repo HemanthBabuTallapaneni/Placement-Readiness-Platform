@@ -8,14 +8,21 @@ export default function Assessments() {
     const [activeTab, setActiveTab] = useState('analyze'); // 'analyze', 'history', 'results'
     const [history, setHistory] = useState([]);
     const [currentResult, setCurrentResult] = useState(null);
+    const [warningMsg, setWarningMsg] = useState('');
 
     useEffect(() => {
         const saved = localStorage.getItem('jd_analysis_history');
         if (saved) {
             try {
-                setHistory(JSON.parse(saved));
+                const parsed = JSON.parse(saved);
+                const validHistory = parsed.filter(item => item.id && item.createdAt && item.extractedSkills && item.finalScore !== undefined);
+                setHistory(validHistory);
+                if (validHistory.length !== parsed.length) {
+                    setWarningMsg("One saved entry couldn't be loaded. Create a new analysis.");
+                }
             } catch (e) {
                 console.error("Failed to parse history", e);
+                setWarningMsg("Saved history corrupted. Please run a new analysis.");
             }
         }
     }, []);
@@ -28,10 +35,16 @@ export default function Assessments() {
 
     const handleAnalyze = (e) => {
         e.preventDefault();
+        setWarningMsg('');
         const fd = new FormData(e.target);
         const company = fd.get('company');
         const role = fd.get('role');
         const jdText = fd.get('jdText');
+
+        if (jdText.trim().length < 200) {
+            setWarningMsg("This JD is too short to analyze deeply. Paste full JD for better output.");
+            return;
+        }
 
         const result = processJD(company, role, jdText);
         saveToHistory(result);
@@ -59,7 +72,8 @@ export default function Assessments() {
         const updatedResult = {
             ...currentResult,
             skillConfidenceMap: newMap,
-            readinessScore: newScore
+            finalScore: newScore,
+            updatedAt: new Date().toISOString()
         };
 
         setCurrentResult(updatedResult);
@@ -74,13 +88,13 @@ export default function Assessments() {
     };
 
     const copyPlan = () => {
-        const text = currentResult.plan.map(p => `${p.day} - ${p.title}\n${p.description}`).join('\n\n');
+        const text = currentResult.plan7Days.map(p => `${p.day} - ${p.title}\n${p.description}`).join('\n\n');
         copyToClipboard("7-Day Preparation Plan:\n\n" + text);
     };
 
     const copyChecklist = () => {
-        const text = currentResult.dynamicRounds ?
-            currentResult.dynamicRounds.map(r => `${r.round}: ${r.title}\nTopics: ${r.topics}\nWhy: ${r.why}`).join('\n\n')
+        const text = currentResult.roundMapping ?
+            currentResult.roundMapping.map(r => `${r.round}: ${r.title}\nTopics: ${r.topics}\nWhy: ${r.why}`).join('\n\n')
             : currentResult.checklist.map(c => `${c.round}\n` + c.items.map(i => `- ${i}`).join('\n')).join('\n\n');
         copyToClipboard("Projected Interview Rounds:\n\n" + text);
     };
@@ -92,16 +106,16 @@ export default function Assessments() {
 
     const downloadTXT = () => {
         const text = `Role: ${currentResult.role} at ${currentResult.company}
-Readiness Score: ${currentResult.readinessScore}/100
+Readiness Score: ${currentResult.finalScore}/100
 
 KEY SKILLS
 ${Object.entries(currentResult.extractedSkills).map(([cat, skills]) => `${cat}: ${skills.join(', ')}`).join('\n')}
 
 7-DAY PLAN
-${currentResult.plan.map(p => `${p.day} - ${p.title}\n${p.description}`).join('\n\n')}
+${currentResult.plan7Days.map(p => `${p.day} - ${p.title}\n${p.description}`).join('\n\n')}
 
 PROJECTED INTERVIEW ROUNDS
-${currentResult.dynamicRounds ? currentResult.dynamicRounds.map(r => `${r.round}: ${r.title}\nTopics: ${r.topics}\nWhy: ${r.why}`).join('\n\n') : currentResult.checklist.map(c => `${c.round}\n` + c.items.map(i => `- ${i}`).join('\n')).join('\n\n')}
+${currentResult.roundMapping ? currentResult.roundMapping.map(r => `${r.round}: ${r.title}\nTopics: ${r.topics}\nWhy: ${r.why}`).join('\n\n') : currentResult.checklist.map(c => `${c.round}\n` + c.items.map(i => `- ${i}`).join('\n')).join('\n\n')}
 
 RECOMMENDED QUESTIONS
 ${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
@@ -145,6 +159,12 @@ ${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
                         <p className="text-sm text-gray-500 mt-1">Paste your target job description to verify your readiness and generate a targeted preparation plan.</p>
                     </CardHeader>
                     <CardContent>
+                        {warningMsg && (
+                            <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg flex items-start gap-2.5">
+                                <AlertCircle className="w-5 h-5 mt-0.5 shrink-0 text-amber-600" />
+                                <p className="font-medium text-amber-900 leading-relaxed">{warningMsg}</p>
+                            </div>
+                        )}
                         <form onSubmit={handleAnalyze} className="space-y-5">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div className="space-y-2">
@@ -194,7 +214,7 @@ ${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
                                                     <p className="text-sm text-gray-500 font-medium line-clamp-1">{item.company}</p>
                                                 </div>
                                                 <div className="bg-primary/10 text-primary text-xs font-bold px-2.5 py-1 rounded-full border border-primary/20 shrink-0">
-                                                    {item.readinessScore}/100
+                                                    {item.finalScore}/100
                                                 </div>
                                             </div>
                                             <div className="flex flex-wrap gap-1 mt-3">
@@ -237,7 +257,7 @@ ${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
                         <div className="flex items-center gap-4 bg-gray-50 px-5 py-3 rounded-xl border border-gray-200 shrink-0 relative z-10">
                             <div className="text-sm font-bold text-gray-500 tracking-wide">READINESS<br />SCORE</div>
                             <div className="text-4xl font-black text-primary flex items-baseline">
-                                {currentResult.readinessScore}
+                                {currentResult.finalScore}
                                 <span className="text-lg text-gray-400 font-bold ml-0.5">/100</span>
                             </div>
                         </div>
@@ -356,7 +376,7 @@ ${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-6 space-y-5">
-                                    {currentResult.plan.map((dayPlan, idx) => (
+                                    {currentResult.plan7Days.map((dayPlan, idx) => (
                                         <div key={idx} className="relative pl-5 border-l-2 border-primary/20 pb-3 last:border-0 last:pb-0 group">
                                             <div className="absolute w-3 h-3 bg-white border-2 border-primary rounded-full -left-[7.5px] top-1 group-hover:scale-125 transition-transform"></div>
                                             <h5 className="font-bold text-sm text-gray-800">{dayPlan.day} <span className="text-primary font-medium px-2">—</span> {dayPlan.title}</h5>
@@ -375,7 +395,7 @@ ${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
                                 <CardContent className="pt-6 relative">
                                     <div className="absolute left-8 top-10 bottom-6 w-0.5 bg-gray-800"></div>
                                     <div className="space-y-6 relative z-10">
-                                        {(currentResult.dynamicRounds || []).map((round, idx) => (
+                                        {(currentResult.roundMapping || []).map((round, idx) => (
                                             <div key={idx} className="relative pl-8">
                                                 <div className="absolute left-[-11px] top-1.5 w-3.5 h-3.5 bg-gray-900 border-2 border-primary rounded-full"></div>
                                                 <h5 className="font-bold text-sm text-white mb-0.5">{round.round}: {round.title}</h5>
