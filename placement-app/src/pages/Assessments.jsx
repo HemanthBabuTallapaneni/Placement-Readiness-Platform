@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { processJD } from '../utils/analyzer';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { cn } from '../lib/utils';
-import { FileSearch, Clock, ChevronRight, CheckCircle2, ListChecks, Calendar, MessageSquare, ArrowLeft } from 'lucide-react';
+import { FileSearch, Clock, ChevronRight, CheckCircle2, ListChecks, Calendar, MessageSquare, ArrowLeft, Copy, Download, AlertCircle } from 'lucide-react';
 
 export default function Assessments() {
     const [activeTab, setActiveTab] = useState('analyze'); // 'analyze', 'history', 'results'
@@ -43,6 +43,74 @@ export default function Assessments() {
     const viewHistoryItem = (item) => {
         setCurrentResult(item);
         setActiveTab('results');
+    };
+
+    const updateSkillStatus = (skill, status) => {
+        if (!currentResult) return;
+
+        const newMap = { ...currentResult.skillConfidenceMap, [skill]: status };
+
+        let newScore = currentResult.baseScore;
+        Object.values(newMap).forEach(val => {
+            newScore += (val === "know" ? 2 : -2);
+        });
+        newScore = Math.max(0, Math.min(newScore, 100));
+
+        const updatedResult = {
+            ...currentResult,
+            skillConfidenceMap: newMap,
+            readinessScore: newScore
+        };
+
+        setCurrentResult(updatedResult);
+
+        const updatedHistory = history.map(item => item.id === updatedResult.id ? updatedResult : item);
+        setHistory(updatedHistory);
+        localStorage.setItem('jd_analysis_history', JSON.stringify(updatedHistory));
+    };
+
+    const copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text);
+    };
+
+    const copyPlan = () => {
+        const text = currentResult.plan.map(p => `${p.day} - ${p.title}\n${p.description}`).join('\n\n');
+        copyToClipboard("7-Day Preparation Plan:\n\n" + text);
+    };
+
+    const copyChecklist = () => {
+        const text = currentResult.checklist.map(c => `${c.round}\n` + c.items.map(i => `- ${i}`).join('\n')).join('\n\n');
+        copyToClipboard("Round-wise Checklist:\n\n" + text);
+    };
+
+    const copyQuestions = () => {
+        const text = currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n');
+        copyToClipboard("Likely Interview Questions:\n\n" + text);
+    };
+
+    const downloadTXT = () => {
+        const text = `Role: ${currentResult.role} at ${currentResult.company}
+Readiness Score: ${currentResult.readinessScore}/100
+
+KEY SKILLS
+${Object.entries(currentResult.extractedSkills).map(([cat, skills]) => `${cat}: ${skills.join(', ')}`).join('\n')}
+
+7-DAY PLAN
+${currentResult.plan.map(p => `${p.day} - ${p.title}\n${p.description}`).join('\n\n')}
+
+ROUND-WISE CHECKLIST
+${currentResult.checklist.map(c => `${c.round}\n` + c.items.map(i => `- ${i}`).join('\n')).join('\n\n')}
+
+RECOMMENDED QUESTIONS
+${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
+
+        const blob = new Blob([text], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${currentResult.company}_Prep_Plan.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
     };
 
     return (
@@ -89,7 +157,7 @@ export default function Assessments() {
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-gray-700">Job Description</label>
                                 <textarea name="jdText" required rows={8} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all text-sm resize-y" placeholder="Paste the full job description here..."></textarea>
-                                <p className="text-xs text-gray-400 font-medium">Providing a detailed description (>800 chars) increases analysis accuracy.</p>
+                                <p className="text-xs text-gray-400 font-medium">Providing a detailed description (&gt;800 chars) increases analysis accuracy.</p>
                             </div>
                             <button type="submit" className="w-full bg-primary hover:bg-slate-800 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 shadow-sm flex items-center justify-center gap-2">
                                 <FileSearch className="w-4 h-4" /> Generate Preperation Plan
@@ -186,12 +254,29 @@ export default function Assessments() {
                                         {Object.entries(currentResult.extractedSkills).map(([category, skills]) => (
                                             <div key={category}>
                                                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-100 pb-1">{category}</h4>
-                                                <div className="flex flex-wrap gap-2.5">
-                                                    {skills.map((skill, idx) => (
-                                                        <span key={idx} className="bg-primary/5 border border-primary/20 text-primary text-sm font-semibold px-3 py-1.5 rounded-lg">
-                                                            {skill}
-                                                        </span>
-                                                    ))}
+                                                <div className="flex flex-col gap-3">
+                                                    {skills.map((skill, idx) => {
+                                                        const status = currentResult.skillConfidenceMap?.[skill] || "practice";
+                                                        return (
+                                                            <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-gray-200 rounded-lg p-2 gap-3 shadow-sm">
+                                                                <span className="font-semibold text-gray-800 text-sm px-2">{skill}</span>
+                                                                <div className="flex bg-gray-100 rounded-md p-0.5">
+                                                                    <button
+                                                                        onClick={() => updateSkillStatus(skill, "know")}
+                                                                        className={cn("px-3 py-1.5 text-xs font-bold rounded-sm transition-colors", status === "know" ? "bg-white text-green-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                                                                    >
+                                                                        I know this
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => updateSkillStatus(skill, "practice")}
+                                                                        className={cn("px-3 py-1.5 text-xs font-bold rounded-sm transition-colors", status === "practice" ? "bg-white text-amber-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                                                                    >
+                                                                        Need practice
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         ))}
@@ -261,6 +346,59 @@ export default function Assessments() {
                                 </CardContent>
                             </Card>
                         </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row gap-6 mt-6">
+                        <Card className="flex-1 shadow-sm border border-gray-100 overflow-hidden bg-primary/5">
+                            <CardContent className="p-6">
+                                <div className="flex items-start gap-4">
+                                    <div className="bg-primary/10 p-3 rounded-full text-primary shrink-0">
+                                        <AlertCircle className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-lg font-bold text-gray-900">Action Next</h4>
+                                        <p className="text-sm text-gray-700 mt-1">Start your Day 1 plan now. Focus on revising your weaker concepts before advancing.</p>
+                                        <div className="mt-4 flex items-center gap-2">
+                                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Top Priorities:</span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {Object.entries(currentResult.skillConfidenceMap || {})
+                                                    .filter(([_, status]) => status === "practice")
+                                                    .map(([s]) => s)
+                                                    .slice(0, 3)
+                                                    .map((skill, i) => (
+                                                        <span key={i} className="text-xs font-bold bg-white border border-primary/20 text-primary px-2.5 py-1 rounded-md shadow-sm">
+                                                            {skill}
+                                                        </span>
+                                                    ))
+                                                }
+                                                {Object.values(currentResult.skillConfidenceMap || {}).every(s => s === "know") && (
+                                                    <span className="text-xs font-bold bg-green-100 text-green-700 px-2.5 py-1 rounded-md">All skills covered! Proceed to mock tests.</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="shrink-0 md:w-64 shadow-sm border border-gray-100 flex flex-col justify-center bg-gray-50">
+                            <CardContent className="p-6 flex flex-col gap-4">
+                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Export Tools</h4>
+                                <div className="space-y-3">
+                                    <button onClick={copyPlan} className="w-full text-left text-sm font-semibold text-gray-600 hover:text-primary flex items-center gap-2 transition-colors">
+                                        <Copy className="w-4 h-4" /> Copy 7-Day Plan
+                                    </button>
+                                    <button onClick={copyChecklist} className="w-full text-left text-sm font-semibold text-gray-600 hover:text-primary flex items-center gap-2 transition-colors">
+                                        <Copy className="w-4 h-4" /> Copy Round Checklist
+                                    </button>
+                                    <button onClick={copyQuestions} className="w-full text-left text-sm font-semibold text-gray-600 hover:text-primary flex items-center gap-2 transition-colors">
+                                        <Copy className="w-4 h-4" /> Copy 10 Questions
+                                    </button>
+                                </div>
+                                <button onClick={downloadTXT} className="w-full bg-white border border-gray-200 shadow-sm text-sm font-bold text-primary hover:bg-gray-50 rounded-lg py-2 flex items-center justify-center gap-2 transition-colors mt-2">
+                                    <Download className="w-4 h-4" /> Download TXT
+                                </button>
+                            </CardContent>
+                        </Card>
                     </div>
                 </div>
             )}

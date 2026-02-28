@@ -162,12 +162,21 @@ export const generateQuestions = (extractedSkills) => {
 export const processJD = (company, role, jdText) => {
     const { extracted, categoryCount, hasNone } = extractSkills(jdText);
 
-    let score = 35;
-    score += Math.min(categoryCount * 5, 30);
-    if (company && company.trim().length > 0) score += 10;
-    if (role && role.trim().length > 0) score += 10;
-    if (jdText && jdText.trim().length > 800) score += 10;
-    score = Math.min(score, 100);
+    let baseScore = 35;
+    baseScore += Math.min(categoryCount * 5, 30);
+    if (company && company.trim().length > 0) baseScore += 10;
+    if (role && role.trim().length > 0) baseScore += 10;
+    if (jdText && jdText.trim().length > 800) baseScore += 10;
+    baseScore = Math.min(baseScore, 100);
+
+    const skillConfidenceMap = {};
+    let initialScore = baseScore;
+    Object.values(extracted).flat().forEach(skill => {
+        skillConfidenceMap[skill] = "practice";
+        initialScore -= 2;
+    });
+
+    initialScore = Math.max(0, Math.min(initialScore, 100));
 
     return {
         id: Date.now().toString(),
@@ -176,7 +185,9 @@ export const processJD = (company, role, jdText) => {
         role: role || "Unknown Role",
         jdText,
         extractedSkills: extracted,
-        readinessScore: score,
+        baseScore,
+        skillConfidenceMap,
+        readinessScore: initialScore,
         checklist: generateChecklist(extracted),
         plan: generatePlan(extracted),
         questions: generateQuestions(extracted)
